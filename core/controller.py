@@ -264,6 +264,7 @@ class ParkingOutController:
                 self.set_ui_text(f"VALIDASI: {ticket_code}")
 
                 success_val, response = validate_ticket(ticket_code)
+                print(response)
                 print(f"✅ Validation response: status={response.get('status_gate')}, ticket={response.get('ticket_code')}", flush=True)
 
                 if not success_val:
