@@ -195,6 +195,7 @@ def parse_emoney_simple(response_hex: str):
         response_hex = response_hex.upper().strip()
         response_len = len(response_hex)
 
+        print('[EMoney Parsing] response hex: ', response_hex, flush=True)
         if response_hex == "0200040001100217":
             print("💡 Info: No card detected response.")
             return {
