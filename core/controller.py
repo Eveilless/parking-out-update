@@ -146,49 +146,69 @@ class ParkingOutController:
     def _emoney_loop(self):
         while self.running:
             if not self.emoney.is_connected():
+                print("💳 E-Money: Reconnecting to device...", flush=True)
                 self.emoney.connect()
                 time.sleep(3)
                 continue
-                
+
             if not self.vehicle_detected:
                 time.sleep(0.05)
                 continue
-                
+
             with self.state_lock:
                 if self.is_busy:
                     time.sleep(0.1)
                     continue
 
             # Check card via serial handler (blocking call)
+            print("💳 E-Money: Waiting for card...", flush=True)
             success_read, card_data, conn = serial_handler.check_balance(self.emoney.serial_conn)
+
             if not success_read:
+                print(f"❌ E-Money: Card read failed - {card_data}", flush=True)
                 time.sleep(0.1)
                 continue
 
+            print(f"✅ E-Money: Card detected - {card_data}", flush=True)
+
             with self.state_lock:
                 if self.is_busy:
+                    print("⏸️ E-Money: System busy, skipping", flush=True)
                     continue
                 self.is_busy = True
                 self.transaction_successful = False
-                
+
             try:
                 card_number = card_data.get('card_number')
-                self.set_ui_text(f"VALIDATE: {card_number}")
-                
+                print(f"🔍 E-Money: Card number: {card_number}", flush=True)
+                self.set_ui_text(f"VALIDASI: {card_number}")
+
+                print(f"📡 E-Money: Validating with backend...", flush=True)
                 success_val, response = validate_emoney(card_number)
+                print(f"📊 E-Money: Response - success={success_val}, response={response}", flush=True)
+
                 if not success_val:
+                    print(f"❌ E-Money: Validation failed - {response.get('message')}", flush=True)
                     raise ValueError(response.get("message", "Validasi Gagal"))
 
                 with open(os.getenv('ACTIVE_TRANSACTION_FILE'), "w") as file:
                     json.dump(response, file, indent=4)
 
                 status = response.get("status_gate")
-                if status == "payed" or (status == "generated" and int(response.get('total_price') or 0) == 0):
+                total_price = response.get('total_price', 0)
+                print(f"📊 E-Money: Status={status}, Price={total_price}", flush=True)
+
+                if status == "payed" or (status == "generated" and int(total_price or 0) == 0):
+                    print(f"🚪 E-Money: OPENING GATE! Status={status}, Price={total_price}", flush=True)
                     self.modbus.open_gate()
-                    self.set_ui_text(f"LUNAS: {card_number}")
+                    self.set_ui_text(f"LUNAS ✅")
+                    print(f"📝 E-Money: Updating translog...", flush=True)
                     update_translog(response, None, None, None)
                     self.release_system(success=True)
+                    print(f"✅ E-Money: Transaction completed successfully", flush=True)
+
                 elif status == "generated":
+                    print(f"💳 E-Money: Payment required - entering payment mode", flush=True)
                     # Menunggu pembayaran
                     self.ui.main_widget.mode = "payment"
                     self.ui.main_widget.set_payment_data({
@@ -196,13 +216,18 @@ class ParkingOutController:
                         "Total Harga": int(response.get('total_price') or 0)
                     })
                     self.ui.main_widget.update()
+                    self.set_ui_text("MENUNGGU PEMBAYARAN E-MONEY...")
                     time.sleep(2)
+                    print(f"🔄 E-Money: Starting payment loop", flush=True)
                     success_payment = self._handle_payment_loop()
                     self.release_system(success=success_payment)
+                    print(f"✅ E-Money: Payment result={success_payment}", flush=True)
                 else:
-                    raise ValueError("Status tidak dikenal")
+                    print(f"❌ E-Money: Unknown status: {status}", flush=True)
+                    raise ValueError(f"Status tidak dikenal: {status}")
 
             except Exception as e:
+                print(f"❌ E-Money: Exception - {str(e)}", flush=True)
                 self.set_ui_text(str(e).upper())
                 time.sleep(2)
                 self.release_system(success=False)
@@ -311,8 +336,14 @@ class ParkingOutController:
                     with self.state_lock:
                         self.is_busy = False
 
-                    self.set_ui_text("SILAHKAN SCAN ULANG TIKET SETELAH PEMBAYARAN")
-                    print("⏳ Waiting for customer rescan after QRIS payment...", flush=True)
+                    # FOR TESTING: Show instruction to manually confirm payment
+                    # In production, wait for backend callback from bank
+                    self.set_ui_text("SILAHKAN SCAN ULANG TIKET SETELAH PEMBAYARAN\n(Testing: Konfirmasi manual)")
+                    print("⏳ Waiting for customer rescan after QRIS payment...")
+                    print("⚠️ NOTE: Webhook callback not received. Check:")
+                    print("   - Is webhook.site receiving requests from iPay88?")
+                    print("   - Is BackendURL configured in iPay88 dashboard?")
+                    print("   - Check: https://webhook.site", flush=True)
                 else:
                     print(f"❌ Unknown status: {status}", flush=True)
                     raise ValueError(f"Unknown status: {status}")
