@@ -286,15 +286,30 @@ class ParkingOutController:
             try:
                 ticket_code = data
                 print(f"📖 QR Scan detected: {ticket_code}", flush=True)
+
+                # Check if this is a rescan after payment
+                active_file = os.getenv('ACTIVE_TRANSACTION_FILE')
+                previous_ticket = None
+                if active_file and os.path.exists(active_file):
+                    try:
+                        with open(active_file, 'r') as f:
+                            prev_data = json.load(f)
+                            previous_ticket = prev_data.get('ticket_code')
+                            print(f"📋 Previous ticket in memory: {previous_ticket}", flush=True)
+                    except:
+                        pass
+
+                print(f"🔄 Validating ticket: {ticket_code} (Previous: {previous_ticket})", flush=True)
                 self.set_ui_text(f"VALIDASI: {ticket_code}")
 
                 success_val, response = validate_ticket(ticket_code)
-                print(response)
+                print(f"📡 Backend response: {response}", flush=True)
                 print(f"✅ Validation response: status={response.get('status_gate')}, ticket={response.get('ticket_code')}", flush=True)
 
                 if not success_val:
-                    print(f"❌ Validation failed: {response.get('message')}", flush=True)
-                    raise ValueError(response.get("message", "Validasi Tiket Gagal"))
+                    error_msg = response.get("message", "Validasi Tiket Gagal")
+                    print(f"❌ Validation failed: {error_msg}", flush=True)
+                    raise ValueError(error_msg)
 
                 with open(os.getenv('ACTIVE_TRANSACTION_FILE'), "w") as file:
                     json.dump(response, file, indent=4)
