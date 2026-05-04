@@ -283,7 +283,7 @@ class ParkingOutController:
                         print("✅ QRIS printed successfully", flush=True)
                         # Give drivers time to scan the QRIS
                         self.set_ui_text("SILAHKAN SCAN KODE QRIS")
-                        time.sleep(3)
+                        time.sleep(5)
 
                     print("💳 Showing payment mode UI...", flush=True)
                     self.ui.main_widget.mode = "payment"
