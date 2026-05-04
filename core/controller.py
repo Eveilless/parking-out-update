@@ -295,17 +295,9 @@ class ParkingOutController:
                     self.set_ui_text("MENUNGGU PEMBAYARAN QRIS...")
                     time.sleep(2)
 
-                    print("⏳ Starting payment verification loop...", flush=True)
-                    success_payment = self._handle_payment_loop()
-
-                    if success_payment:
-                        print("✅ Payment successful via QRIS", flush=True)
-                        self.set_ui_text("PEMBAYARAN DITERIMA")
-                        time.sleep(2)
-                    else:
-                        print("❌ Payment failed or cancelled", flush=True)
-
-                    self.release_system(success=success_payment)
+                    print("💳 Waiting for customer to pay QRIS and rescan ticket...", flush=True)
+                    self.set_ui_text("SILAHKAN SCAN ULANG TIKET SETELAH PEMBAYARAN")
+                    # Don't auto-verify, wait for user to rescan ticket
                     
             except Exception as e:
                 self.set_ui_text(str(e).upper())
@@ -315,7 +307,7 @@ class ParkingOutController:
     def _handle_payment_loop(self):
         payment_attempts = 0
         MAX_ATTEMPTS = 3
-        print(f"🔄 Payment loop started (Max attempts: {MAX_ATTEMPTS})", flush=True)
+        print(f"🔄 E-Money payment loop started (Max attempts: {MAX_ATTEMPTS})", flush=True)
 
         while payment_attempts < MAX_ATTEMPTS:
             if not self.vehicle_detected:
