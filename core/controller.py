@@ -82,16 +82,21 @@ class ParkingOutController:
                         with self.state_lock:
                             if not self.vehicle_detected:
                                 self.vehicle_detected = True
+                                print("🚗 LOOP SENSOR DETECTED - KENDARAAN MASUK")
                                 sound_handler.play_vehicle_detected_sound("../assets/print_ticket.mp3")
-                                self.print_to_oled("Vehicle detected")
+                                self.print_to_oled("VLD: Kendaraan masuk", "Menunggu pembayaran", "")
                                 self.set_ui_text("SILAHKAN TEMPELKAN KARTU ATAU SCAN TIKET")
-                                
+
                                 self.emoney.reset_buffer()
                                 self.rfid.reset_buffer()
                                 self.qr.reset_buffer()
                     else:
                         if self.vehicle_detected:
-                            print("Kendaraan meninggalkan loop sensor")
+                            print("🚗 LOOP SENSOR CLEARED - KENDARAAN KELUAR")
+                            self.set_ui_text("SELAMAT JALAN")
+                            sound_handler.play_vehicle_detected_sound("../assets/print_ticket.mp3")
+                            self.print_to_oled("VLD: Kendaraan keluar", "Sistem siap", "")
+                            time.sleep(2)
                             self.set_ui_text(self.welcome_text.upper())
                             with self.state_lock:
                                 self.is_busy = False
