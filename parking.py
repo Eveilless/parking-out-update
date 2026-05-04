@@ -51,6 +51,7 @@ def main():
     )
     
     # 4. Jalankan Sistem
+    print("Starting the controller")
     try:
         controller.start()
         print("✅ Sistem berjalan. Menunggu kendaraan di pintu keluar...")
