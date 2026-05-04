@@ -259,33 +259,43 @@ class ParkingOutController:
                 self.is_busy = True
                 
             try:
-                self.set_ui_text(f"VALIDATE: {data}")
-                success_val, response = validate_ticket(data)
-                
+                ticket_code = data
+                print(f"📖 QR Scan detected: {ticket_code}", flush=True)
+                self.set_ui_text(f"VALIDASI: {ticket_code}")
+
+                success_val, response = validate_ticket(ticket_code)
+                print(f"✅ Validation response: status={response.get('status_gate')}, ticket={response.get('ticket_code')}", flush=True)
+
                 if not success_val:
+                    print(f"❌ Validation failed: {response.get('message')}", flush=True)
                     raise ValueError(response.get("message", "Validasi Tiket Gagal"))
 
                 with open(os.getenv('ACTIVE_TRANSACTION_FILE'), "w") as file:
                     json.dump(response, file, indent=4)
 
                 status = response.get("status_gate")
+                print(f"📊 Transaction status: {status}, total_price: {response.get('total_price')}", flush=True)
+
                 if status == "payed" or (status == "generated" and int(response.get('total_price') or 0) == 0):
+                    print(f"✅ GATE OPEN - Payment confirmed or free parking", flush=True)
                     self.modbus.open_gate()
                     update_translog(response, None, None, None)
-                    self.set_ui_text("LUNAS")
+                    self.set_ui_text("LUNAS ✅")
                     self.release_system(success=True)
+
                 elif status == "generated":
+                    print(f"💳 Payment required - Generating QRIS code", flush=True)
                     virtualCode = response.get("virtual_code")
+
                     if virtualCode:
-                        print("🖨️ Printing QRIS payment code...", flush=True)
+                        print(f"🖨️ Printing QRIS: {virtualCode}", flush=True)
                         self.set_ui_text("MENCETAK KODE QRIS...")
                         self.printer.print_qris(virtualCode)
                         print("✅ QRIS printed successfully", flush=True)
-                        # Give drivers time to scan the QRIS
                         self.set_ui_text("SILAHKAN SCAN KODE QRIS")
                         time.sleep(5)
 
-                    print("💳 Showing payment mode UI...", flush=True)
+                    print("💳 Showing payment UI and releasing lock for rescan...", flush=True)
                     self.ui.main_widget.mode = "payment"
                     self.ui.main_widget.set_payment_data({
                         "Ticket Code": response.get('ticket_code'),
@@ -295,11 +305,19 @@ class ParkingOutController:
                     self.set_ui_text("MENUNGGU PEMBAYARAN QRIS...")
                     time.sleep(2)
 
-                    print("💳 Waiting for customer to pay QRIS and rescan ticket...", flush=True)
+                    # IMPORTANT: Release is_busy so user can rescan ticket after paying
+                    print("🔓 Releasing is_busy lock to allow rescan...", flush=True)
+                    with self.state_lock:
+                        self.is_busy = False
+
                     self.set_ui_text("SILAHKAN SCAN ULANG TIKET SETELAH PEMBAYARAN")
-                    # Don't auto-verify, wait for user to rescan ticket
-                    
+                    print("⏳ Waiting for customer rescan after QRIS payment...", flush=True)
+                else:
+                    print(f"❌ Unknown status: {status}", flush=True)
+                    raise ValueError(f"Unknown status: {status}")
+
             except Exception as e:
+                print(f"❌ Exception in QR loop: {str(e)}", flush=True)
                 self.set_ui_text(str(e).upper())
                 time.sleep(2)
                 self.release_system(success=False)
