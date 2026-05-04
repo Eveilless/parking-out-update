@@ -11,22 +11,22 @@ from devices.serial_readers import EmoneyReader, RfidReader, QrReader
 import ui
 
 def main():
-    print("🚀 Memulai Sistem Parking Out (Refactored)...")
-    
+    print("🚀 Memulai Sistem Parking Out (Refactored)...", flush=True)
+
     env_files = glob.glob('/media/pi/*/.env')
     if not env_files:
-        print("ERROR: File .env tidak ditemukan di /media/pi/. Pastikan flashdisk terpasang.")
+        print("ERROR: File .env tidak ditemukan di /media/pi/. Pastikan flashdisk terpasang.", flush=True)
         sys.exit(1)
 
     ENV_PATH = env_files[0]
-    print(f"Konfigurasi ditemukan di: {ENV_PATH}")
+    print(f"Konfigurasi ditemukan di: {ENV_PATH}", flush=True)
 
     project_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
     try:
         shutil.copy2(ENV_PATH, project_env)
-        print("✅ File .env berhasil di-copy ke direktori project")
+        print("✅ File .env berhasil di-copy ke direktori project", flush=True)
     except Exception as e:
-        print(f"⚠️ Peringatan: Gagal menyalin .env: {e}")
+        print(f"⚠️ Peringatan: Gagal menyalin .env: {e}", flush=True)
 
     load_dotenv(dotenv_path=project_env, override=True)
     

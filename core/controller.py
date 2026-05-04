@@ -21,9 +21,14 @@ class ParkingOutController:
         self.transaction_successful = False
         self.state_lock = threading.Lock()
 
-        print("Intializing...")
+        # For goodbye message timing (non-blocking)
+        self.goodbye_start_time = None
+        self.goodbye_shown = False
+
+        print("✅ Initializing ParkingOutController...", flush=True)
         self.welcome_text = os.getenv("WELCOME_TEXT", "SELAMAT DATANG BHC PARKING SYSTEM")
         self.ip_address = "127.0.0.1"
+        print(f"✅ Welcome text: {self.welcome_text}", flush=True)
 
     def print_to_oled(self, row_one='', row_two='', row_three=''):
         logging.info(row_one)
@@ -31,18 +36,22 @@ class ParkingOutController:
 
     def start(self):
         self.running = True
+        print("✅ Starting modbus connection...", flush=True)
         self.modbus.connect()
-        
+
         # Connect serial devices
+        print("✅ Connecting serial devices (eMoney, RFID, QR)...", flush=True)
         self.emoney.connect()
         self.rfid.connect()
         self.qr.connect()
 
         # Start background threads
+        print("✅ Starting background threads...", flush=True)
         threading.Thread(target=self._modbus_loop, daemon=True).start()
         threading.Thread(target=self._emoney_loop, daemon=True).start()
         threading.Thread(target=self._rfid_loop, daemon=True).start()
         threading.Thread(target=self._qr_loop, daemon=True).start()
+        print("✅ All systems ready!", flush=True)
 
     def stop(self):
         self.running = False
@@ -94,16 +103,22 @@ class ParkingOutController:
                     else:
                         if self.vehicle_detected:
                             print("🚗 LOOP SENSOR CLEARED - KENDARAAN KELUAR")
-                            self.set_ui_text("SELAMAT JALAN")
-                            sound_handler.play_vehicle_detected_sound("../assets/print_ticket.mp3")
-                            self.print_to_oled("VLD: Kendaraan keluar", "Sistem siap", "")
-                            time.sleep(2)
-                            self.set_ui_text(self.welcome_text.upper())
-                            with self.state_lock:
-                                self.is_busy = False
-                                self.transaction_successful = False
-                                self.vehicle_detected = False
-                                self.modbus.close_gate()
+                            if not self.goodbye_shown:
+                                self.goodbye_shown = True
+                                self.goodbye_start_time = time.time()
+                                self.set_ui_text("SELAMAT JALAN")
+                                sound_handler.play_vehicle_detected_sound("../assets/print_ticket.mp3")
+                                self.print_to_oled("VLD: Kendaraan keluar", "Sistem siap", "")
+
+                            # Non-blocking timeout: return to welcome after 2 seconds
+                            if self.goodbye_shown and (time.time() - self.goodbye_start_time) > 2:
+                                self.set_ui_text(self.welcome_text.upper())
+                                with self.state_lock:
+                                    self.is_busy = False
+                                    self.transaction_successful = False
+                                    self.vehicle_detected = False
+                                    self.goodbye_shown = False
+                                    self.modbus.close_gate()
 
                     # Logic: Reprint Button
                     if prev_button == 0 and button == 1:
