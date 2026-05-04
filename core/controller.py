@@ -277,16 +277,34 @@ class ParkingOutController:
                 elif status == "generated":
                     virtualCode = response.get("virtual_code")
                     if virtualCode:
+                        print("🖨️ Printing QRIS payment code...", flush=True)
+                        self.set_ui_text("MENCETAK KODE QRIS...")
                         self.printer.print_qris(virtualCode)
-                        
+                        print("✅ QRIS printed successfully", flush=True)
+                        # Give drivers time to scan the QRIS
+                        self.set_ui_text("SILAHKAN SCAN KODE QRIS")
+                        time.sleep(3)
+
+                    print("💳 Showing payment mode UI...", flush=True)
                     self.ui.main_widget.mode = "payment"
                     self.ui.main_widget.set_payment_data({
                         "Ticket Code": response.get('ticket_code'),
                         "Total Harga": int(response.get('total_price') or 0)
                     })
                     self.ui.main_widget.update()
+                    self.set_ui_text("MENUNGGU PEMBAYARAN QRIS...")
                     time.sleep(2)
+
+                    print("⏳ Starting payment verification loop...", flush=True)
                     success_payment = self._handle_payment_loop()
+
+                    if success_payment:
+                        print("✅ Payment successful via QRIS", flush=True)
+                        self.set_ui_text("PEMBAYARAN DITERIMA")
+                        time.sleep(2)
+                    else:
+                        print("❌ Payment failed or cancelled", flush=True)
+
                     self.release_system(success=success_payment)
                     
             except Exception as e:
@@ -297,30 +315,43 @@ class ParkingOutController:
     def _handle_payment_loop(self):
         payment_attempts = 0
         MAX_ATTEMPTS = 3
-        
+        print(f"🔄 Payment loop started (Max attempts: {MAX_ATTEMPTS})", flush=True)
+
         while payment_attempts < MAX_ATTEMPTS:
             if not self.vehicle_detected:
+                print("🚗 Vehicle left during payment - cancelling transaction", flush=True)
                 serial_handler.send_cancel_command(self.emoney.serial_conn)
                 self.set_ui_text("TRANSAKSI DIBATALKAN")
                 sound_handler.play_vehicle_detected_sound("../assets/cancel.mp3")
                 time.sleep(2)
                 return False
 
+            print(f"💰 Attempting payment (Attempt {payment_attempts + 1}/{MAX_ATTEMPTS})...", flush=True)
             response = attempt_deduction(self.emoney.serial_conn)
+
             if response and response.get('success'):
+                print("✅ Payment successful!", flush=True)
                 self.modbus.open_gate()
-                self.set_ui_text("PEMBAYARAN BERHASIL")
+                self.set_ui_text("PEMBAYARAN BERHASIL ✅")
+                sound_handler.play_vehicle_detected_sound("../assets/print_ticket.mp3")
+                time.sleep(2)
                 return True
+
             elif response and response.get("message") != "No card detected":
                 payment_attempts += 1
                 remaining = MAX_ATTEMPTS - payment_attempts
+
                 if remaining > 0:
-                    self.set_ui_text(f"GAGAL. SISA {remaining} PERCOBAAN", mode="payment")
-                    time.sleep(1.5)
+                    print(f"❌ Payment failed: {response.get('message')} - {remaining} attempts remaining", flush=True)
+                    self.set_ui_text(f"❌ GAGAL\nSISA {remaining} PERCOBAAN", mode="payment")
+                    time.sleep(2)  # Give driver time to read error message
                 else:
-                    self.set_ui_text("TRANSAKSI DIBATALKAN\nBATAS PERCOBAAN HABIS", mode="welcome")
-                    time.sleep(2)
-            time.sleep(0.2)
+                    print("❌ Max payment attempts exceeded - transaction cancelled", flush=True)
+                    self.set_ui_text("TRANSAKSI DIBATALKAN\n❌ BATAS PERCOBAAN HABIS", mode="welcome")
+                    sound_handler.play_vehicle_detected_sound("../assets/cancel.mp3")
+                    time.sleep(3)
+
+            time.sleep(0.5)  # Brief pause before next attempt
 
         serial_handler.send_cancel_command(self.emoney.serial_conn)
         sound_handler.play_vehicle_detected_sound("../assets/cancel.mp3")
