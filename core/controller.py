@@ -20,7 +20,8 @@ class ParkingOutController:
         self.is_busy = False
         self.transaction_successful = False
         self.state_lock = threading.Lock()
-        
+
+        print("Intializing...")
         self.welcome_text = os.getenv("WELCOME_TEXT", "SELAMAT DATANG BHC PARKING SYSTEM")
         self.ip_address = "127.0.0.1"
 
