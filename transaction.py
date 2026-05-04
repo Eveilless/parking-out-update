@@ -531,8 +531,8 @@ def request_qris_payment(ref_no, amount):
         "Remark": "",
         "Lang": "iso-8859-1",
         "RequestType": "seamless",
-        "ResponseURL": "https://sandbox.ipay88.co.id/epayment/fujipaystatusv2.asp",
-        "BackendURL": "http://sandbox.ipay88.co.id/ePayment/testing/RequestForm_savetemp.asp",
+        "ResponseURL": os.getenv('IPAY88_RESPONSE_URL', 'https://sandbox.ipay88.co.id/epayment/fujipaystatusv2.asp'),
+        "BackendURL": os.getenv('IPAY88_BACKEND_URL', 'http://sandbox.ipay88.co.id/ePayment/testing/RequestForm_savetemp.asp'),
         "Signature": signature_code
     }
 
