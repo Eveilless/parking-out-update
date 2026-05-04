@@ -34,6 +34,7 @@ def validate_ticket(qr_data):
                                  json={"ticket": qr_data, "iddev": iddev}, timeout=10)
         response.raise_for_status()
         data = response.json()
+        print('/validate-qr ; result: ', data)
         if data.get("status") == "success":
             with open(os.getenv('ACTIVE_TRANSACTION_FILE'), "w") as file:
                 json.dump(data.get("ticket", {}), file, indent=4)
